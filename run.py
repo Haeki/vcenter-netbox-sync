@@ -205,7 +205,7 @@ def is_banned_asset_tag(text):
     text = text.lower()
     banned_tags = [
         "Default string", "NA", "N/A", "None", "Null", "oem", "o.e.m",
-        "to be filled by o.e.m.", "Unknown", " ", ""
+        "to be filled by o.e.m.", "Unknown", " ", "", " none"
         ]
     banned_tags = [t.lower() for t in banned_tags]
     if text in banned_tags:
