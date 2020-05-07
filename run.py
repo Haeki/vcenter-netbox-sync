@@ -689,7 +689,7 @@ class vCenterHandler:
                     if platform:
                         for index, nic in enumerate(obj.guest.net):
                             # Interfaces
-                            nic_name = "vNIC{}".format(index)
+                            nic_name = getattr(nic, "network", "vNIC{}".format(index))
                             log.debug(
                                 "Collecting info for virtual interface '%s'.",
                                 nic_name
@@ -1126,7 +1126,7 @@ class NetBoxHandler:
         elif nb_obj_type == "virtual_interfaces":
             query = "?virtual_machine={}&{}={}".format(
                 quote_plus(vc_data["virtual_machine"]["name"]), query_key,
-                vc_data[query_key]
+                quote_plus(vc_data[query_key])
                 )
         else:
             query = "?{}={}".format(
