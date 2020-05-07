@@ -1370,7 +1370,7 @@ class NetBoxHandler:
                         nb_obj_name
                         )
                     update_object = True
-                else:
+                elif settings.UPDATE_PRIMARY_IP:
                     log.info(
                         "Primary IP already set for NetBox '%s' object. "
                         "Comparing.",
@@ -1388,6 +1388,11 @@ class NetBoxHandler:
                             "Existing Primary IP matches latest check. Moving "
                             "on."
                             )
+                else:
+                    log.info(
+                        "Primary IP already set for NetBox '%s' object. ",
+                        nb_obj_name
+                        )
                 if update_object:
                     log.info(
                         "Setting NetBox '%s' object primary IP to %s.",

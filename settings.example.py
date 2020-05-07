@@ -28,6 +28,9 @@ TRACK_VM_HOST = False
 DEVICE_ROLE_HOST = "Server"
 DEVICE_ROLE_VM = "Server"
 
+# Allow the primary IP of a netbox object to be overwritten
+UPDATE_PRIMARY_IP = True
+
 # vCenter Settings
 # Hostname (FQDN or IP), Port, User, and Password for each vCenter instance
 # The USER argument supports SSO with @domain.tld suffix
