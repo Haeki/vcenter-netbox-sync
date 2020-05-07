@@ -711,6 +711,7 @@ class vCenterHandler:
                     results["virtual_machines"].append(nbt.virtual_machine(
                         name=truncate(obj_name, max_len=64),
                         cluster=cluster,
+                        comments=getattr(obj.config, "annotation", None),
                         status=int(
                             1 if obj.runtime.powerState == "poweredOn" else 0
                             ),
