@@ -33,7 +33,7 @@ DEVICE_ROLE = "Server"
 # The USER argument supports SSO with @domain.tld suffix
 VC_HOSTS = [
     # You can add more vCenter instances by duplicating the line below
-    {"HOST": "vcenter1.example.com", "PORT": 443, "USER": "", "PASS": ""},
+    {"HOST": "vcenter1.example.com", "PORT": 443, "USER": "", "PASS": "", "VRF_ID": None},
     ]
 
 
