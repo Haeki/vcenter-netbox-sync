@@ -1097,6 +1097,9 @@ class NetBoxHandler:
                 )
         elif self.vrf_id is not None and nb_obj_type in ("ip_addresses", "prefixes"):
             query = "?{}={}&vrf_id={}".format(query_key, vc_data[query_key], self.vrf_id)
+        elif nb_obj_type in ("manufacturers", "device_types"):
+            keyData = vc_data[query_key]
+            query = "?{key}={}&{key}={}&{key}={}&{key}={}".format(keyData, keyData.capitalize(), keyData.lower(), keyData.upper(), key = query_key)
         else:
             query = "?{}={}".format(query_key, vc_data[query_key])
         req = self.request(
