@@ -730,7 +730,7 @@ class vCenterHandler:
                     if platform:
                         for index, nic in enumerate(obj.guest.net):
                             # Interfaces
-                            nic_name = getattr(nic, "network", "vNIC{}".format(index))
+                            nic_name = truncate(getattr(nic, "network", "vNIC{}".format(index)), 64)
                             log.debug(
                                 "Collecting info for virtual interface '%s'.",
                                 nic_name
