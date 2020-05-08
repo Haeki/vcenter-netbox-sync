@@ -1086,6 +1086,8 @@ class NetBoxHandler:
                 quote_plus(vc_data["virtual_machine"]["name"]), query_key,
                 quote_plus(vc_data[query_key])
                 )
+        elif self.vrf_id is not None and nb_obj_type in ("ip_addresses", "prefixes"):
+            query = "?{}={}&vrf_id={}".format(query_key, vc_data[query_key], self.vrf_id)
         else:
             query = "?{}={}".format(query_key, vc_data[query_key])
         req = self.request(
@@ -1502,7 +1504,9 @@ class NetBoxHandler:
         :rtype: dict
         """
         result = {"tenant": None, "vrf": None}
-        query = "?contains={}".format(ip_addr)
+        query = ("?contains={}".format(ip_addr) 
+                if self.vrf_id is None 
+                else "?contains={}&vrf_id={}".format(ip_addr, self.vrf_id))
         try:
             prefix_obj = self.request(
                 req_type="get", nb_obj_type="prefixes", query=query
