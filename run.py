@@ -435,7 +435,7 @@ class vCenterHandler:
         # Mapping of object type keywords to view types
         vc_obj_views = {
             "datacenters": vim.Datacenter,
-            "clusters": vim.ClusterComputeResource,
+            "clusters": vim.ComputeResource,
             "hosts": vim.HostSystem,
             "virtual_machines": vim.VirtualMachine,
             }
@@ -496,7 +496,7 @@ class vCenterHandler:
                         ))
                 elif vc_obj_type == "clusters":
                     results["clusters"].append(nbt.cluster(
-                        name=obj_name,
+                        name=obj_name.split("-")[0].upper() if "aes.intra" in obj_name else obj_name,
                         ctype="VMware ESXi",
                         group=obj.parent.parent.name,
                         tags=self.tags
@@ -595,10 +595,14 @@ class vCenterHandler:
                     if cluster == obj_name:
                         # Store the host so that we can check VMs against it
                         self.standalone_hosts.append(cluster)
-                        cluster = "Standalone ESXi Host"
+                        if "aes.intra" in cluster:
+                            cluster = cluster.split("-")[0].upper()
+                        else:
+                            cluster = "Standalone ESXi Host"
                     # Create NetBox device
+                    hostName = obj_name.split(".")[0].upper()
                     results["devices"].append(nbt.device(
-                        name=truncate(obj_name, max_len=64),
+                        name=truncate(hostName, max_len=64),
                         device_role=settings.DEVICE_ROLE,
                         device_type=obj_model,
                         platform="VMware ESXi",
@@ -640,7 +644,7 @@ class vCenterHandler:
                                 pnic.spec.linkSpeed.speedMb
                                 )
                         results["interfaces"].append(nbt.device_interface(
-                            device=truncate(obj_name, max_len=64),
+                            device=truncate(hostName, max_len=64),
                             name=nic_name,
                             itype=32767,  # Other
                             mac_address=pnic.mac,
@@ -661,7 +665,7 @@ class vCenterHandler:
                             nic_name
                             )
                         results["interfaces"].append(nbt.device_interface(
-                            device=truncate(obj_name, max_len=64),
+                            device=truncate(hostName, max_len=64),
                             name=nic_name,
                             itype=0,  # Virtual
                             mac_address=vnic.spec.mac,
@@ -678,7 +682,7 @@ class vCenterHandler:
                             address="{}/{}".format(
                                 ip_addr, vnic.spec.ip.subnetMask
                                 ),
-                            device=truncate(obj_name, max_len=64),
+                            device=truncate(hostName, max_len=64),
                             interface=nic_name,
                             tags=self.tags,
                             ))
@@ -694,11 +698,15 @@ class vCenterHandler:
                     # Cluster
                     cluster = obj.runtime.host.parent.name
                     if cluster in self.standalone_hosts:
-                        log.debug(
-                            "VM is assigned to a standalone ESXi host. Setting "
-                            "cluster to 'Standalone ESXi Host'."
+                        if "aes.intra" in cluster:
+                            cluster = cluster.split("-")[0].upper()
+                        else:
+                            cluster = "Standalone ESXi Host"
+                        log.debug(    
+                            "VM is assigned to a standalone ESXi host (%s) "
+                            "Setting cluster to '%s'.",
+                            obj.runtime.host.parent.name, cluster
                             )
-                        cluster = "Standalone ESXi Host"
                     # Platform
                     platform = obj.guest.guestFullName
                     if platform is not None:
@@ -891,6 +899,7 @@ class NetBoxHandler:
                 },
             }
         self.vc_tag = format_tag(vc_conn["HOST"])
+        self.vrf_id = vc_conn["VRF_ID"]
         self.vc = vCenterHandler(
             format_vcenter_conn(vc_conn), nb_api_version=self.nb_api_version
             )
@@ -1079,7 +1088,7 @@ class NetBoxHandler:
         # working with interfaces
         if nb_obj_type == "interfaces":
             query = "?device={}&{}={}".format(
-                vc_data["device"]["name"], query_key, vc_data[query_key]
+                vc_data["device"]["name"].split(".")[0].upper(), query_key, vc_data[query_key]
                 )
         elif nb_obj_type == "virtual_interfaces":
             query = "?virtual_machine={}&{}={}".format(
