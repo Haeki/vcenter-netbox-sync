@@ -574,7 +574,7 @@ class Templates:
     def virtual_machine(self, name, cluster, status=None, role=None,
                         tenant=None, platform=None, primary_ip4=None,
                         primary_ip6=None, vcpus=None, memory=None, disk=None,
-                        comments=None, local_context_data=None, tags=None):
+                        comments=None, local_context_data=None, tags=None, custom_fields=None):
         """
         Template for NetBox virtual machines at /virtualization/virtual-machines/
 
@@ -606,6 +606,8 @@ class Templates:
         :type local_context_data: dict, optional
         :param tags: Tags to apply to the object
         :type tags: list, optional
+        :param custom_fields: Custom Fields defined in NetBox
+        :type custom_fields: dict, optional
         """
         obj = {
             "name": name,
@@ -627,7 +629,8 @@ class Templates:
             "disk": disk,
             "comments": comments.replace("\n", "\r\n\r") if comments else None,
             "local_context_data": local_context_data,
-            "tags": tags
+            "tags": tags,
+            "custom_fields": custom_fields
             }
         return remove_empty_fields(obj)
 
