@@ -693,6 +693,14 @@ class vCenterHandler:
                         )
                     # Cluster
                     cluster = obj.runtime.host.parent.name
+                    #Data Store
+                    data_store = ", ".join(ds.name for ds in obj.datastore)
+                    #Custom Fields
+                    custom_fields = {
+                        #"instanceUuid": obj.summary.config.instanceUuid,
+                        "host": obj.runtime.host.name,
+                        "data_store": data_store
+                    }
                     if cluster in self.standalone_hosts:
                         log.debug(
                             "VM is assigned to a standalone ESXi host. Setting "
@@ -724,7 +732,8 @@ class vCenterHandler:
                             if isinstance(comp, vim.vm.device.VirtualDisk)
                             ]) / 1024 / 1024),  # Kilobytes to Gigabytes
                         vcpus=obj.config.hardware.numCPU,
-                        tags=self.tags
+                        tags=self.tags,
+                        custom_fields = custom_fields
                         ))
                     # If VMware Tools is not detected then we cannot reliably
                     # collect interfaces and IP addresses
