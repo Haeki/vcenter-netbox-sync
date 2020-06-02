@@ -717,7 +717,7 @@ class vCenterHandler:
                     custom_fields = {
                         #"instanceUuid": obj.summary.config.instanceUuid,
                         "customer": tenantFolderName,
-                        "host": obj.runtime.host.name,
+                        "host": obj.runtime.host.name.split(".")[0].upper(),
                         "data_store": data_store
                     }
                     if cluster in self.standalone_hosts:
