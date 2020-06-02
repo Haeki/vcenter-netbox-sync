@@ -697,6 +697,29 @@ class vCenterHandler:
                         )
                     # Cluster
                     cluster = obj.runtime.host.parent.name
+                    #Tenant
+                    tenant = None
+                    tenantFolderName = None
+                    if "defra" in obj.runtime.host.name:
+                        parent = obj.parent
+                        while(parent.name != "vm"):
+                            tenantFolder = parent
+                            parent = parent.parent
+                        for cfv in tenantFolder.customValue:
+                            tenant = cfv.value if cfv.key == 614 else None
+                        tenantFolderName = tenantFolder.name
+                    else:
+                        tenant ="AMS"
+                        tenantFolderName = "Not in Folder"
+                    #Data Store
+                    data_store = ", ".join(ds.name for ds in obj.datastore)
+                    #Custom Fields
+                    custom_fields = {
+                        #"instanceUuid": obj.summary.config.instanceUuid,
+                        "customer": tenantFolderName,
+                        "host": obj.runtime.host.name,
+                        "data_store": data_store
+                    }
                     if cluster in self.standalone_hosts:
                         if "aes.intra" in cluster:
                             cluster = cluster.split("-")[0].upper()
@@ -724,6 +747,7 @@ class vCenterHandler:
                             1 if obj.runtime.powerState == "poweredOn" else 0
                             ),
                         role="Server",
+                        tenant=tenant,
                         platform=platform,
                         memory=obj.config.hardware.memoryMB,
                         disk=int(sum([
@@ -732,7 +756,8 @@ class vCenterHandler:
                             if isinstance(comp, vim.vm.device.VirtualDisk)
                             ]) / 1024 / 1024),  # Kilobytes to Gigabytes
                         vcpus=obj.config.hardware.numCPU,
-                        tags=self.tags
+                        tags=self.tags,
+                        custom_fields = custom_fields
                         ))
                     # If VMware Tools is not detected then we cannot reliably
                     # collect interfaces and IP addresses
