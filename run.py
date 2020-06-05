@@ -575,7 +575,7 @@ class vCenterHandler:
                     # Create NetBox device
                     results["devices"].append(nbt.device(
                         name=truncate(obj_name, max_len=64),
-                        device_role=settings.DEVICE_ROLE,
+                        device_role=settings.DEVICE_ROLE_HOST,
                         device_type=obj_model,
                         platform=obj_platform,
                         site="vCenter",
@@ -687,7 +687,7 @@ class vCenterHandler:
                         status=int(
                             1 if obj.runtime.powerState == "poweredOn" else 0
                             ),
-                        role="Server",
+                        role=settings.DEVICE_ROLE_VM,
                         platform=platform,
                         memory=obj.config.hardware.memoryMB,
                         disk=int(sum([
@@ -1761,12 +1761,14 @@ class NetBoxHandler:
                 }],
             "device_roles": [
                 {
-                    "name": "Server",
-                    "slug": "server",
-                    "color": "9e9e9e",
+                    "name": settings.DEVICE_ROLE_VM,
                     "vm_role": True
                 }],
             }
+        if settings.DEVICE_ROLE_VM != settings.DEVICE_ROLE_HOST:
+            dependencies["device_roles"].append({
+                "name": settings.DEVICE_ROLE_HOST,
+            })
         # For each dependency of each type verify object exists
         log.info("Verifying all prerequisite objects exist in NetBox.")
         for dep_type in dependencies:
