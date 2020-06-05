@@ -435,7 +435,7 @@ class vCenterHandler:
         # Mapping of object type keywords to view types
         vc_obj_views = {
             "datacenters": vim.Datacenter,
-            "clusters": vim.ClusterComputeResource,
+            "clusters": vim.ComputeResource,
             "hosts": vim.HostSystem,
             "virtual_machines": vim.VirtualMachine,
             }
@@ -496,7 +496,7 @@ class vCenterHandler:
                         ))
                 elif vc_obj_type == "clusters":
                     results["clusters"].append(nbt.cluster(
-                        name=obj_name,
+                        name=obj_name.split("-")[0].upper() if "aes.intra" in obj_name else obj_name,
                         ctype="VMware ESXi",
                         group=obj.parent.parent.name,
                         tags=self.tags
@@ -595,10 +595,14 @@ class vCenterHandler:
                     if cluster == obj_name:
                         # Store the host so that we can check VMs against it
                         self.standalone_hosts.append(cluster)
-                        cluster = "Standalone ESXi Host"
+                        if "aes.intra" in cluster:
+                            cluster = cluster.split("-")[0].upper()
+                        else:
+                            cluster = "Standalone ESXi Host"
                     # Create NetBox device
+                    hostName = obj_name.split(".")[0].upper()
                     results["devices"].append(nbt.device(
-                        name=truncate(obj_name, max_len=64),
+                        name=truncate(hostName, max_len=64),
                         device_role=settings.DEVICE_ROLE_HOST,
                         device_type=obj_model,
                         platform="VMware ESXi",
@@ -640,7 +644,7 @@ class vCenterHandler:
                                 pnic.spec.linkSpeed.speedMb
                                 )
                         results["interfaces"].append(nbt.device_interface(
-                            device=truncate(obj_name, max_len=64),
+                            device=truncate(hostName, max_len=64),
                             name=nic_name,
                             itype=32767,  # Other
                             mac_address=pnic.mac,
@@ -661,7 +665,7 @@ class vCenterHandler:
                             nic_name
                             )
                         results["interfaces"].append(nbt.device_interface(
-                            device=truncate(obj_name, max_len=64),
+                            device=truncate(hostName, max_len=64),
                             name=nic_name,
                             itype=0,  # Virtual
                             mac_address=vnic.spec.mac,
@@ -678,7 +682,7 @@ class vCenterHandler:
                             address="{}/{}".format(
                                 ip_addr, vnic.spec.ip.subnetMask
                                 ),
-                            device=truncate(obj_name, max_len=64),
+                            device=truncate(hostName, max_len=64),
                             interface=nic_name,
                             tags=self.tags,
                             ))
@@ -693,12 +697,39 @@ class vCenterHandler:
                         )
                     # Cluster
                     cluster = obj.runtime.host.parent.name
+                    #Tenant
+                    tenant = None
+                    tenantFolderName = None
+                    if "defra" in obj.runtime.host.name:
+                        parent = obj.parent
+                        while(parent.name != "vm"):
+                            tenantFolder = parent
+                            parent = parent.parent
+                        for cfv in tenantFolder.customValue:
+                            tenant = cfv.value if cfv.key == 614 else None
+                        tenantFolderName = tenantFolder.name
+                    else:
+                        tenant ="AMS"
+                        tenantFolderName = "Not in Folder"
+                    #Data Store
+                    data_store = ", ".join(ds.name for ds in obj.datastore)
+                    #Custom Fields
+                    custom_fields = {
+                        #"instanceUuid": obj.summary.config.instanceUuid,
+                        "customer": tenantFolderName,
+                        "host": obj.runtime.host.name.split(".")[0].upper(),
+                        "data_store": data_store
+                    }
                     if cluster in self.standalone_hosts:
-                        log.debug(
-                            "VM is assigned to a standalone ESXi host. Setting "
-                            "cluster to 'Standalone ESXi Host'."
+                        if "aes.intra" in cluster:
+                            cluster = cluster.split("-")[0].upper()
+                        else:
+                            cluster = "Standalone ESXi Host"
+                        log.debug(    
+                            "VM is assigned to a standalone ESXi host (%s) "
+                            "Setting cluster to '%s'.",
+                            obj.runtime.host.parent.name, cluster
                             )
-                        cluster = "Standalone ESXi Host"
                     # Platform
                     platform = obj.guest.guestFullName
                     if platform is not None:
@@ -716,6 +747,7 @@ class vCenterHandler:
                             1 if obj.runtime.powerState == "poweredOn" else 0
                             ),
                         role=settings.DEVICE_ROLE_VM,
+                        tenant=tenant,
                         platform=platform,
                         memory=obj.config.hardware.memoryMB,
                         disk=int(sum([
@@ -724,7 +756,8 @@ class vCenterHandler:
                             if isinstance(comp, vim.vm.device.VirtualDisk)
                             ]) / 1024 / 1024),  # Kilobytes to Gigabytes
                         vcpus=obj.config.hardware.numCPU,
-                        tags=self.tags
+                        tags=self.tags,
+                        custom_fields = custom_fields
                         ))
                     # If VMware Tools is not detected then we cannot reliably
                     # collect interfaces and IP addresses
@@ -1095,7 +1128,7 @@ class NetBoxHandler:
         # working with interfaces
         if nb_obj_type == "interfaces":
             query = "?device={}&{}={}".format(
-                vc_data["device"]["name"], query_key, vc_data[query_key]
+                vc_data["device"]["name"].split(".")[0].upper(), query_key, vc_data[query_key]
                 )
         elif nb_obj_type == "virtual_interfaces":
             query = "?virtual_machine={}&{}={}".format(
@@ -1104,6 +1137,9 @@ class NetBoxHandler:
                 )
         elif self.vrf_id is not None and nb_obj_type in ("ip_addresses", "prefixes"):
             query = "?{}={}&vrf_id={}".format(query_key, vc_data[query_key], self.vrf_id)
+        elif nb_obj_type in ("manufacturers", "device_types"):
+            keyData = vc_data[query_key]
+            query = "?{key}={}&{key}={}&{key}={}&{key}={}".format(keyData, keyData.capitalize(), keyData.lower(), keyData.upper(), key = query_key)
         else:
             query = "?{}={}".format(
                 query_key, vc_data[query_key]
