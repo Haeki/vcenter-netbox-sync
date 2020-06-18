@@ -671,11 +671,21 @@ class vCenterHandler:
                             "cluster to 'Standalone ESXi Host'."
                             )
                         cluster = "Standalone ESXi Host"
-                    # Platform
-                    platform = obj.guest.guestFullName
+
+                    #Guest Tools + Platform
+                    if (obj.guest.toolsVersionStatus == 'guestToolsNotInstalled' or
+                        obj.guest.toolsRunningStatus == 'guestToolsNotRunning'):
+                        guest_tools = False
+                        platform = obj.summary.config.guestFullName
+                    else:
+                        guest_tools = True
+                        platform = obj.guest.guestFullName
+                        if platform is None or len(platform) <= 0:
+                            platform = obj.summary.config.guestFullName
                     if platform is not None:
                         # Add new platform object if it doesn't already exist
-                        if truncate(platform, max_len=100) not in (
+                        platform = truncate(platform, max_len=100)
+                        if platform not in (
                                 res["name"] for res in results["platforms"]):
                             results["platforms"].append(nbt.platform(
                                 name=platform,
@@ -700,7 +710,7 @@ class vCenterHandler:
                         ))
                     # If VMware Tools is not detected then we cannot reliably
                     # collect interfaces and IP addresses
-                    if platform:
+                    if guest_tools:
                         for index, nic in enumerate(obj.guest.net):
                             # Interfaces
                             nic_name = truncate(getattr(nic, "network", "vNIC{}".format(index)), 64)
