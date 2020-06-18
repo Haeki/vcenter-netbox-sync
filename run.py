@@ -683,10 +683,6 @@ class vCenterHandler:
                             tags=self.tags,
                             ))
                 elif vc_obj_type == "virtual_machines":
-                    log.info(
-                        "Collecting info about vCenter %s '%s' object.",
-                        vc_obj_type, obj_name
-                        )
                     # Virtual Machines
                     log.debug(
                         "Collecting info for virtual machine '%s'", obj_name
