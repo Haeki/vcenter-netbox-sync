@@ -429,7 +429,7 @@ class vCenterHandler:
             "datacenters": ["cluster_groups"],
             "clusters": ["clusters"],
             "hosts": [
-                "manufacturers", "device_types", "devices", "interfaces",
+                "manufacturers", "device_types", "platforms", "devices", "interfaces",
                 "ip_addresses"
                 ],
             "virtual_machines": [
@@ -468,7 +468,11 @@ class vCenterHandler:
                         obj.summary.hardware.vendor, max_len=50
                         )
                     obj_model = truncate(obj.summary.hardware.model, max_len=50)
-                    # NetBox Manufacturers and Device Types are susceptible to
+                    obj_platform = truncate(
+                        getattr(obj.summary.config.product, "fullName", "VMware ESXi"), 
+                        max_len=100
+                        )
+                    # NetBox Platforms, Manufacturers and Device Types are susceptible to
                     # duplication as they are parents to multiple objects
                     # To avoid unnecessary querying we check to make sure they
                     # haven't already been collected
@@ -504,6 +508,20 @@ class vCenterHandler:
                             "Device Type object '%s' already exists. "
                             "Skipping.", obj_model
                             )
+                    if not obj_platform in [
+                            res["name"] for res in results["platforms"]]:
+                        log.debug(
+                            "Collecting info to create NetBox platforms "
+                            "object."
+                            )
+                        results["platforms"].append(nbt.platform(
+                            name=obj_platform,
+                            ))
+                    else:
+                        log.debug(
+                            "Platform object '%s' already exists. "
+                            "Skipping.", obj_platform
+                            ) 
                     log.debug(
                         "Collecting info to create NetBox devices object."
                         )
@@ -563,7 +581,7 @@ class vCenterHandler:
                         name=truncate(obj_name, max_len=64),
                         device_role=settings.DEVICE_ROLE,
                         device_type=obj_model,
-                        platform="VMware ESXi",
+                        platform=obj_platform,
                         site="vCenter",
                         serial=serial_number,
                         asset_tag=asset_tag,
