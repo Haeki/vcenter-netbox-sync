@@ -1519,9 +1519,9 @@ class NetBoxHandler:
         :rtype: dict
         """
         result = {"tenant": None, "vrf": None}
-        query = ("?contains={}".format(ip_addr) 
-                if self.vrf_id is None 
-                else "?contains={}&vrf_id={}".format(ip_addr, self.vrf_id))
+        query = ("?contains={}".format(ip_addr)
+                 if self.vrf_id is None
+                 else "?contains={}&vrf_id={}".format(ip_addr, self.vrf_id))
         try:
             prefix_obj = self.request(
                 req_type="get", nb_obj_type="prefixes", query=query
