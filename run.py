@@ -713,7 +713,7 @@ class vCenterHandler:
                     if guest_tools:
                         for index, nic in enumerate(obj.guest.net):
                             # Interfaces
-                            nic_name = truncate(getattr(nic, "network", "vNIC{}".format(index)), 64)
+                            nic_name = nic.network if nic.network else "vNIC{}".format(index)
                             log.debug(
                                 "Collecting info for virtual interface '%s'.",
                                 nic_name
@@ -721,7 +721,7 @@ class vCenterHandler:
                             results["virtual_interfaces"].append(
                                 nbt.vm_interface(
                                     virtual_machine=obj_name,
-                                    name=nic_name,
+                                    name=truncate(nic_name, 64),
                                     mac_address=nic.macAddress,
                                     enabled=nic.connected,
                                     tags=self.tags
