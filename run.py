@@ -905,7 +905,7 @@ class NetBoxHandler:
                 },
             }
         self.vc_tag = format_tag(vc_conn["HOST"])
-        self.vrf_id = vc_conn["VRF_ID"]
+        self.vrf_id = vc_conn.get("VRF_ID")
         self.vc = vCenterHandler(
             format_vcenter_conn(vc_conn), nb_api_version=self.nb_api_version
             )
