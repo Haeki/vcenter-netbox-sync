@@ -79,11 +79,7 @@ def compare_dicts(dict1, dict2, dict1_name="d1", dict2_name="d2", path=""):
                 "Mismatch: %s value is '%s' while %s value is '%s'.",
                 dict1_path, dict1[key], dict2_path, dict2[key]
                 )
-            # Allow the modification of device sites by ignoring the value
-            if "site" in path and key == "name":
-                log.debug("Site mismatch is allowed. Moving on.")
-            else:
-                result = False
+            result = False
         if result:
             log.debug("%s and %s values match.", dict1_path, dict2_path)
         else:
@@ -1189,6 +1185,30 @@ class NetBoxHandler:
                 )
             nb_data = req["results"][0]
 
+            # Remove site from existing NetBox host objects to allow for
+            # user modifications
+            if nb_obj_type == "devices":
+                del vc_data["site"]
+                log.debug(
+                    "Removed site from %s object before sending update "
+                    "to NetBox.", vc_data[query_key]
+                    )
+            # Remove platform from existing NetBox vm objects to allow for
+            # user modifications
+            if nb_obj_type == "virtual_machine" and nb_data["platform"] is not None:
+                del vc_data["platform"]
+                log.debug(
+                    "Removed platform from %s object before sending update "
+                    "to NetBox.", vc_data[query_key]
+                    )
+            # Remove type from existing NetBox interface objects to allow for
+            # user modifications
+            if nb_obj_type == "interfaces":
+                del vc_data["type"]
+                log.debug(
+                    "Removed type from %s object before sending update "
+                    "to NetBox.", vc_data[query_key]
+                    )
             if "interfaces" in nb_obj_type:
                 self.update_interface_data(nb_obj_type, nb_data)
 
@@ -1200,7 +1220,7 @@ class NetBoxHandler:
             if "tags" in vc_data:
 
                 vc_data["tags"] = self.update_tag_data(vc_data["tags"])
-
+            
             # Objects that have been previously tagged as orphaned but then
             # reappear in vCenter need to be stripped of their orphaned status
             if "tags" in nb_data and "Orphaned" in [d.get("name") for d in nb_data["tags"]]:
