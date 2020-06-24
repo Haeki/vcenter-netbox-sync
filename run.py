@@ -1857,7 +1857,7 @@ class NetBoxHandler:
             # by tags. Therefore we collect all virtual interfaces and
             # filter them post collection.
             if nb_obj_type == "virtual_interfaces":
-                log.debug("Collected %s virtual interfaces pre-filtering.")
+                log.debug("Collected %s virtual interfaces pre-filtering.", len(nb_objects))
                 nb_objects = [
                     obj for obj in nb_objects if self.vc_tag in obj["tags"]
                     ]
