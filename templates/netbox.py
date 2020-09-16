@@ -625,7 +625,7 @@ class Templates:
             "vcpus": vcpus,
             "memory": memory,
             "disk": disk,
-            "comments": comments,
+            "comments": comments.replace("\n", "\r\n\r") if comments else None,
             "local_context_data": local_context_data,
             "tags": tags
             }
