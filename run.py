@@ -1546,26 +1546,25 @@ class NetBoxHandler:
                     "name": "Orphaned",
                     "slug": "orphaned",
                     "color": "607d8b",
-                    "comments": "This applies to objects that have become "
-                                "orphaned. The source system which has "
-                                "previously provided the object no longer "
-                                "states it exists.{}".format(
-                                    " An object with the 'Orphaned' tag will "
-                                    "remain in this state until it ages out "
-                                    "and is automatically removed."
-                                    ) if settings.NB_PRUNE_ENABLED else ""
+                    "description": "The source system which has previously"
+                                   "provided the object no longer "
+                                   "states it exists.{}".format(
+                                       " An object with the 'Orphaned' tag will "
+                                       "remain in this state until it ages out "
+                                       "and is automatically removed."
+                                   ) if settings.NB_PRUNE_ENABLED else ""
                 },
                 {
                     "name": self.vc_tag,
                     "slug": format_slug(self.vc_tag),
-                    "comments": "Objects synced from vCenter host "
-                                "{}. Be careful not to modify the name or "
-                                "slug.".format(self.vc_tag)
+                    "description": "Objects synced from vCenter host "
+                                   "{}. Be careful not to modify the name or "
+                                   "slug.".format(self.vc_tag)
                 },
                 {
                     "name": "vCenter",
                     "slug": "vcenter",
-                    "comment": "Created and used by vCenter NetBox sync."
+                    "description": "Created and used by vCenter NetBox sync."
                 }],
             "manufacturers": [
                 {"name": "VMware", "slug": "vmware"},
