@@ -204,11 +204,11 @@ def is_banned_asset_tag(text):
     # Is asset tag in banned list?
     text = text.lower()
     banned_tags = [
-        "Default string", "NA", "N/A", "None", " none", "Null", "oem", "o.e.m",
+        "Default string", "NA", "N/A", "None", "Null", "oem", "o.e.m",
         "to be filled by o.e.m.", "Unknown", " ", ""
         ]
     banned_tags = [t.lower() for t in banned_tags]
-    if text in banned_tags:
+    if text.strip() in banned_tags:
         result = True
     # Does it exceed the max allowed length for NetBox asset tags?
     elif len(text) > 50:
