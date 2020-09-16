@@ -967,6 +967,27 @@ class NetBoxHandler:
         return result
 
     def request(self, req_type, nb_obj_type, data=None, query=None, nb_id=None):
+
+        max_retry_attempts = 3
+
+        for _ in range(max_retry_attempts):
+
+            try:
+                result = self.single_request(req_type, nb_obj_type, data, query, nb_id)
+            except (SystemExit, ConnectionError, requests.exceptions.ConnectionError,
+                requests.exceptions.ReadTimeout):
+                log.warning("Request failed, trying again.")
+                continue
+            else:
+                break
+        else:
+            raise SystemExit(
+                    log.critical("Giving up after %d retries.", max_retry_attempts)
+                    )
+
+        return result
+
+    def single_request(self, req_type, nb_obj_type, data=None, query=None, nb_id=None):
         """
         HTTP requests and exception handler for NetBox
 
