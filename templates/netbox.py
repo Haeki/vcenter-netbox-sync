@@ -48,6 +48,9 @@ def truncate(text="", max_len=50):
     :return: Text in :param text: truncated to :param max_len: if necessary
     :rtype: str
     """
+    if text is None:
+        return None
+
     return text if len(text) < max_len else text[:max_len]
 
 
@@ -760,3 +763,34 @@ class Templates:
             "tags": tags
             }
         return remove_empty_fields(obj)
+
+    def tag(self, name, slug=None, id=None, url=None, color=None,
+            description=None, tagged_items=None):
+        """
+        Template for NetBox TAGs at /extras/tags/
+
+        :param name: Name of the TAG
+        :type name: str
+        :param slug: Unique slug for tag
+        :type slug: str, optional
+        :param id: Unique id for the TAG
+        :type id: int, optional
+        :param url: Unique url of tag in NetBox instance
+        :type url: str, optional
+        :param color: hexadecimal web color representation
+        :type color: str, optional
+        :param description: Description of the TAG, max length 200
+        :type description: str, optional
+        :param tagged_items: number of items in NetBox instance with this tag assigned
+        :type tagged_items: int, optional
+
+        """
+        return remove_empty_fields({
+            "id": id,
+            "name": truncate(name, max_len=100),
+            "slug": slug if slug else format_slug(name, max_len=100),
+            "url": url,
+            "description": truncate(description, max_len=200),
+            "color": truncate(color, max_len=6),
+            "tagged_items": tagged_items
+        })

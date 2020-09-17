@@ -740,6 +740,9 @@ class NetBoxHandler:
     :param vc_conn: Connection details for a vCenter host defined in settings.py
     :type vc_conn: dict
     """
+
+    instance_tags = None
+
     def __init__(self, vc_conn):
         self.nb_api_url = "http{}://{}{}/api/".format(
             ("s" if not settings.NB_DISABLE_TLS else ""), settings.NB_FQDN,
@@ -1054,6 +1057,41 @@ class NetBoxHandler:
                 )
         return result
 
+    def update_tag_data(self, tag_list):
+        """
+        updates missing tags in NetBox and reformats list of tags to list of tag dicts
+
+        :param tag_list: list of tags
+        :type tag_list: list
+        :return: list of reformatted tags
+        :rtype: list
+        """
+        nbt = Templates(api_version=self.nb_api_version)
+
+        for tag in tag_list:
+
+            if isinstance(tag, dict):
+                tag = tag.get("name")
+
+                if tag is None:
+                    continue
+
+            if tag not in [d.get("name") for d in self.instance_tags]:
+                log.info(
+                    "Netbox tag '%s' object not found. Requesting creation.",
+                    tag,
+                )
+                self.request(
+                    req_type="post",
+                    nb_obj_type="tags",
+                    data=nbt.tag(name=tag)
+                )
+
+        # update tag information
+        self.get_instance_tags()
+
+        return [{"name": d } for d in tag_list]
+
     def obj_exists(self, nb_obj_type, vc_data):
         """
         Checks whether a NetBox object exists and matches the vCenter object.
@@ -1069,6 +1107,7 @@ class NetBoxHandler:
         # NetBox Device Types objects do not have names to query; we catch
         # and use the model instead
         query_key = self.obj_map[nb_obj_type]["key"]
+
         # Create a query specific to the device parent/child relationship when
         # working with interfaces
         if nb_obj_type == "interfaces":
@@ -1084,13 +1123,17 @@ class NetBoxHandler:
             query = "?{}={}".format(
                 query_key, vc_data[query_key]
                 )
+
         # Add support for filtering objects by vCenter tags
         if self.obj_map[nb_obj_type]["taggable"]:
             query = query + "&?tag={}".format(self.vc_tag)
+
+        # request object from NetBox
         req = self.request(
             req_type="get", nb_obj_type=nb_obj_type,
             query=query
             )
+
         # A single matching object is found so we compare its values to the new
         # object
         if req["count"] == 1:
@@ -1099,9 +1142,19 @@ class NetBoxHandler:
                 nb_obj_type, vc_data[query_key]
                 )
             nb_data = req["results"][0]
+
+            # reduce NetBox tags to names only
+            if nb_data.get("tags"):
+                nb_data["tags"] = [{"name": d["name"]} for d in nb_data["tags"]]
+
+            # add missing tags before assigning them
+            if "tags" in vc_data:
+
+                vc_data["tags"] = self.update_tag_data(vc_data["tags"])
+
             # Objects that have been previously tagged as orphaned but then
             # reappear in vCenter need to be stripped of their orphaned status
-            if "tags" in vc_data and "Orphaned" in nb_data["tags"]:
+            if "tags" in nb_data and "Orphaned" in [d.get("name") for d in nb_data["tags"]]:
                 log.info(
                     "NetBox %s object '%s' is currently marked as orphaned "
                     "but has reappeared in vCenter. Updating NetBox.",
@@ -1129,7 +1182,7 @@ class NetBoxHandler:
                 if "tags" in vc_data:
                     log.debug("Merging tags between vCenter and NetBox object.")
                     vc_data["tags"] = list(
-                        set(vc_data["tags"] + nb_data["tags"])
+                        {x['name']:x for x in vc_data["tags"] + nb_data["tags"]}.values()
                         )
                 # Remove site from existing NetBox host objects to allow for
                 # user modifications
@@ -1151,6 +1204,10 @@ class NetBoxHandler:
                 nb_obj_type, vc_data[query_key], req["count"]
                 )
         else:
+
+            if "tags" in vc_data:
+                vc_data["tags"] = self.update_tag_data(vc_data["tags"])
+
             log.info(
                 "Netbox %s '%s' object not found. Requesting creation.",
                 nb_obj_type,
@@ -1524,32 +1581,45 @@ class NetBoxHandler:
         """
         Validates that all prerequisite NetBox objects exist and creates them.
         """
+        nbt = Templates(api_version=self.nb_api_version)
+        tag_dependencies = [
+            nbt.tag(
+                name="Orphaned",
+                color="607d8b",
+                description="The source system which has previously"
+                            "provided the object no longer "
+                            "states it exists.{}".format(
+                                " An object with the 'Orphaned' tag will "
+                                "remain in this state until it ages out "
+                                "and is automatically removed."
+                                ) if settings.NB_PRUNE_ENABLED else ""
+            ),
+            nbt.tag(
+                name=self.vc_tag,
+                description="Objects synced from vCenter host "
+                            "{}. Be careful not to modify the name or "
+                            "slug.".format(self.vc_tag)
+            ),
+            nbt.tag(
+                name="vCenter",
+                description="Created and used by vCenter NetBox sync."
+            ),
+            nbt.tag(
+                name="Synced",
+                description="Created and used by vCenter NetBox sync."
+            )
+        ]
+
+        log.info("Creating Tags if not present")
+        for tag in tag_dependencies:
+            self.obj_exists(nb_obj_type="tags", vc_data=tag)
+
+        log.info("Finished creating tags.")
+
+        # retrieve tags from current NetBox instance
+        self.get_instance_tags()
+
         dependencies = {
-            "tags": [
-                {
-                    "name": "Orphaned",
-                    "slug": "orphaned",
-                    "color": "607d8b",
-                    "description": "The source system which has previously"
-                                   "provided the object no longer "
-                                   "states it exists.{}".format(
-                                       " An object with the 'Orphaned' tag will "
-                                       "remain in this state until it ages out "
-                                       "and is automatically removed."
-                                   ) if settings.NB_PRUNE_ENABLED else ""
-                },
-                {
-                    "name": self.vc_tag,
-                    "slug": format_slug(self.vc_tag),
-                    "description": "Objects synced from vCenter host "
-                                   "{}. Be careful not to modify the name or "
-                                   "slug.".format(self.vc_tag)
-                },
-                {
-                    "name": "vCenter",
-                    "slug": "vcenter",
-                    "description": "Created and used by vCenter NetBox sync."
-                }],
             "manufacturers": [
                 {"name": "VMware", "slug": "vmware"},
                 ],
@@ -1586,11 +1656,23 @@ class NetBoxHandler:
         log.info("Verifying all prerequisite objects exist in NetBox.")
         for dep_type in dependencies:
             log.debug(
-                "Checking NetBox has necessary %s objects.", dep_type[:-1]
+                "Checking that NetBox has necessary %s objects.", dep_type[:-1]
                 )
             for dep in dependencies[dep_type]:
                 self.obj_exists(nb_obj_type=dep_type, vc_data=dep)
         log.info("Finished verifying prerequisites.")
+
+    def get_instance_tags(self):
+        """
+        retrieve all tags from this NetBox instance
+        """
+
+        log.debug("Retrieve all tags from this NetBox instance")
+
+        req = self.request(
+            req_type="get", nb_obj_type="tags")
+
+        self.instance_tags = req.get("results")
 
     def remove_all(self):
         """
