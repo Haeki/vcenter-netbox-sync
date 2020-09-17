@@ -24,10 +24,10 @@ def format_slug(text, max_len=50):
     """
     allowed_chars = (
         "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" # Alphabet
-        "01234567890" # Numbers
+        "0123456789" # Numbers
         "_-" # Symbols
         )
-    # Replace seperators with dash
+    # Replace separators with dash
     seperators = [" ", ",", "."]
     for sep in seperators:
         text = text.replace(sep, "-")
@@ -38,7 +38,16 @@ def format_slug(text, max_len=50):
 
 
 def truncate(text="", max_len=50):
-    """Ensure a string complies to the maximum length specified."""
+    """
+    Ensure a string complies to the maximum length specified.
+
+    :param text: Text to be checked for length and truncated if necessary
+    :type text: str
+    :param max_len: Max length of the returned string
+    :type max_len: int, optional
+    :return: Text in :param text: truncated to :param max_len: if necessary
+    :rtype: str
+    """
     return text if len(text) < max_len else text[:max_len]
 
 

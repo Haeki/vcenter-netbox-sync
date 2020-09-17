@@ -14,7 +14,7 @@ from pyVim.connect import SmartConnectNoSSL, Disconnect
 from pyVmomi import vim
 import settings
 from logger import log
-from templates.netbox import Templates
+from templates.netbox import Templates, truncate, format_slug
 
 
 
@@ -107,30 +107,6 @@ def format_ip(ip_addr):
     result = "{}/{}".format(ip, cidr)
     log.debug("Converted '%s' to CIDR notation '%s'.", ip_addr, result)
     return result
-
-
-def format_slug(text):
-    """
-    Format string to comply to NetBox slug acceptable pattern and max length.
-
-    :param text: Text to be formatted into an acceptable slug
-    :type text: str
-    :return: Slug of allowed characters [-a-zA-Z0-9_] with max length of 50
-    :rtype: str
-    """
-    allowed_chars = (
-        "abcdefghijklmnopqrstuvxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" # Alphabet
-        "01234567890" # Numbers
-        "_-" # Symbols
-        )
-    # Replace seperators with dash
-    seperators = [" ", ",", "."]
-    for sep in seperators:
-        text = text.replace(sep, "-")
-    # Strip unacceptable characters
-    text = "".join([c for c in text if c in allowed_chars])
-    # Enforce max length
-    return truncate(text, max_len=50).lower()
 
 
 def format_tag(tag):
@@ -321,20 +297,6 @@ async def reverse_lookup(resolver, ip):
     except aiodns.error.DNSError as err:
         log.info("Unable to find record for %s: %s", ip, err.args[1])
     return result
-
-
-def truncate(text="", max_len=50):
-    """
-    Ensure a string complies to the maximum length specified.
-
-    :param text: Text to be checked for length and truncated if necessary
-    :type text: str
-    :param max_len: Max length of the returned string
-    :type max_len: int, optional
-    :return: Text in :param text: truncated to :param max_len: if necessary
-    :rtype: str
-    """
-    return text if len(text) < max_len else text[:max_len]
 
 
 def verify_ip(ip_addr):
