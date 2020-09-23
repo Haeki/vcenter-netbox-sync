@@ -440,7 +440,7 @@ class vCenterHandler:
         results = {}
         # Setup use of NetBox templates
         nbt = Templates(api_version=self.nb_api_version)
-        # Initalize keys expected to be returned
+        # Initialize keys expected to be returned
         for nb_obj_type in obj_type_map[vc_obj_type]:
             results.setdefault(nb_obj_type, [])
         # Create vCenter view for object collection
@@ -641,7 +641,7 @@ class vCenterHandler:
                                 ip_addr, vnic.spec.ip.subnetMask
                                 ),
                             device=truncate(obj_name, max_len=64),
-                            interface=nic_name,
+                            assigned_object=nic_name,
                             tags=self.tags,
                             ))
                 elif vc_obj_type == "virtual_machines":
@@ -697,7 +697,6 @@ class vCenterHandler:
                             results["virtual_interfaces"].append(
                                 nbt.vm_interface(
                                     virtual_machine=obj_name,
-                                    itype=0,
                                     name=nic_name,
                                     mac_address=nic.macAddress,
                                     enabled=nic.connected,
@@ -717,7 +716,7 @@ class vCenterHandler:
                                         nbt.ip_address(
                                             address=ip_addr,
                                             virtual_machine=obj_name,
-                                            interface=nic_name,
+                                            assigned_object=nic_name,
                                             tags=self.tags
                                             ))
             except AttributeError as err:
@@ -742,6 +741,8 @@ class NetBoxHandler:
     """
 
     instance_tags = None
+    instance_interfaces = {}
+    instance_virtual_interfaces = {}
 
     def __init__(self, vc_conn):
         self.nb_api_url = "http{}://{}{}/api/".format(
@@ -1009,6 +1010,9 @@ class NetBoxHandler:
                 "created" if req.status_code == 201 else "deleted",
                 nb_obj_type,
                 )
+            # return patched data
+            if req.status_code == 201:
+                result = req.json()
         elif req.status_code == 400:
             if req_type == "post":
                 log.warning(
@@ -1068,6 +1072,8 @@ class NetBoxHandler:
         """
         nbt = Templates(api_version=self.nb_api_version)
 
+        tagdata_updated = False
+
         for tag in tag_list:
 
             if isinstance(tag, dict):
@@ -1087,8 +1093,11 @@ class NetBoxHandler:
                     data=nbt.tag(name=tag)
                 )
 
+                tagdata_updated = True
+
         # update tag information
-        self.get_instance_tags()
+        if tagdata_updated:
+            self.get_instance_tags()
 
         return [{"name": d } for d in tag_list]
 
@@ -1134,6 +1143,22 @@ class NetBoxHandler:
             query=query
             )
 
+        # add interface id and type to ip_address object
+        if nb_obj_type == "ip_addresses":
+            nic_name = vc_data["assigned_object"]["name"]
+            if  vc_data["assigned_object"].get("virtual_machine"):
+                name = vc_data["assigned_object"]["virtual_machine"]["name"]
+                int_data = self.instance_virtual_interfaces["{}/{}".format(name, nic_name)]
+                int_type = 'virtualization.vminterface'
+            if  vc_data["assigned_object"].get("device"):
+                name = vc_data["assigned_object"]["device"]["name"]
+                int_data = self.instance_interfaces["{}/{}".format(name, nic_name)]
+                int_type = 'dcim.interface'
+
+            if int_data is not None:
+                vc_data["assigned_object_id"] = int_data.get("id")
+                vc_data["assigned_object_type"] = int_type
+
         # A single matching object is found so we compare its values to the new
         # object
         if req["count"] == 1:
@@ -1142,6 +1167,9 @@ class NetBoxHandler:
                 nb_obj_type, vc_data[query_key]
                 )
             nb_data = req["results"][0]
+
+            if "interfaces" in nb_obj_type:
+                self.update_interface_data(nb_obj_type, nb_data)
 
             # reduce NetBox tags to names only
             if nb_data.get("tags"):
@@ -1172,6 +1200,41 @@ class NetBoxHandler:
                     nb_obj_type, vc_data[query_key]
                     )
             else:
+                # prevent reassignment of ip_addresses which have been assigned
+                # to a different virtual_machine in NetBox
+                if nb_obj_type == "ip_addresses" and nb_data.get("assigned_object") is not None:
+
+                    vc_object_name = None
+                    if vc_data.get("assigned_object") is not None:
+                        if vc_data.get("assigned_object").get("device"):
+                            vc_object_name = vc_data["assigned_object"]["device"]["name"]
+                        if vc_data.get("assigned_object").get("virtual_machine"):
+                            vc_object_name = vc_data["assigned_object"]["virtual_machine"]["name"]
+
+                    if nb_data["assigned_object"].get("virtual_machine") is not None:
+                        if nb_data["assigned_object"]["virtual_machine"]["name"] != vc_object_name:
+
+                            log.warning(
+                                "NetBox %s object '%s' for '%s' is already "
+                                "assigned to a different virtual_machine '%s'. "
+                                "Skipping for safety.",
+                                nb_obj_type, vc_data[query_key], vc_object_name,
+                                nb_data["assigned_object"]["virtual_machine"]["name"]
+                            )
+                            return
+
+                    if nb_data["assigned_object"].get("device") is not None:
+                        if nb_data["assigned_object"]["device"]["name"] != vc_object_name:
+
+                            log.warning(
+                                "NetBox %s object '%s' for '%s' is already "
+                                "assigned to a different device '%s'. "
+                                "Skipping for safety.",
+                                nb_obj_type, vc_data[query_key], vc_object_name,
+                                nb_data["assigned_object"]["device"]["name"]
+                            )
+                            return
+
                 log.info(
                     "NetBox %s object '%s' do not match current values.",
                     nb_obj_type, vc_data[query_key]
@@ -1192,10 +1255,13 @@ class NetBoxHandler:
                         "Removed site from %s object before sending update "
                         "to NetBox.", vc_data[query_key]
                         )
-                self.request(
+                respsone = self.request(
                     req_type="patch", nb_obj_type=nb_obj_type, data=vc_data,
                     nb_id=nb_data["id"]
                     )
+                if "interfaces" in nb_obj_type:
+                    self.update_interface_data(nb_obj_type, respsone)
+
         elif req["count"] > 1:
             log.warning(
                 "Search for NetBox %s object '%s' returned %s results but "
@@ -1213,9 +1279,12 @@ class NetBoxHandler:
                 nb_obj_type,
                 vc_data[query_key],
                 )
-            self.request(
+            respsone = self.request(
                 req_type="post", nb_obj_type=nb_obj_type, data=vc_data
                 )
+
+            if "interfaces" in nb_obj_type:
+                self.update_interface_data(nb_obj_type, respsone)
 
     def set_primary_ips(self):
         """Sets the Primary IP of vCenter hosts and Virtual Machines."""
@@ -1295,7 +1364,7 @@ class NetBoxHandler:
             req_type="get", nb_obj_type="ip_addresses",
             query="?tag={}".format(format_slug(self.vc_tag))
             )["results"]
-        log.info("Collected %s NetBox IP address objects.", ip_objs)
+        log.info("Collected %s NetBox IP address objects.", len(ip_objs))
         # We take the IP address objects and make a map of relevant details to
         # compare against and use later
         nb_objs = {}
@@ -1308,7 +1377,7 @@ class NetBoxHandler:
         ips = [ip["address"].split("/")[0] for ip in ip_objs]
         ptrs = queue_dns_lookups(ips)
         # Having collected the IP address objects from NetBox already we can
-        # avoid individual checks for updates by comparing the objects and ptrs
+        # avoid individual checks for updates by comparing the objects and PTRs
         log.info("Comparing latest PTR records against existing NetBox data.")
         for ip, ptr in ptrs:
             if ptr != nb_objs[ip]["dns_name"]:
@@ -1421,33 +1490,34 @@ class NetBoxHandler:
                 )["results"]
             # Certain vCenter object types map to multiple NetBox types. We
             # define the relationships to compare against for these situations.
-            if vc_obj_type == "hosts" and nb_obj_type == "interfaces":
-                nb_objects = [
-                    obj for obj in nb_objects
-                    if obj["device"] is not None
+            if vc_obj_type == "hosts":
+                if nb_obj_type == "interfaces":
+                    nb_objects = [
+                        obj for obj in nb_objects
+                            if obj["device"] is not None
                     ]
-            elif vc_obj_type == "hosts" and nb_obj_type == "ip_addresses":
-                nb_objects = [
-                    obj for obj in nb_objects
-                    if obj["interface"]["device"] is not None
+                elif nb_obj_type == "ip_addresses":
+#                    pprint(nb_objects)
+                    nb_objects = [
+                        obj for obj in nb_objects
+                            if obj.get("assigned_object") is not None and obj.get("assigned_object").get("device") is not None
                     ]
             # Issue 33: As of NetBox v2.6.11 it is not possible to filter
             # virtual interfaces by tag. Therefore we filter post collection.
-            elif vc_obj_type == "virtual_machines" and \
-                    nb_obj_type == "virtual_interfaces":
-                nb_objects = [
-                    obj for obj in nb_objects
-                    if self.vc_tag in obj["tags"]
+            elif vc_obj_type == "virtual_machines":
+                if nb_obj_type == "virtual_interfaces":
+                    nb_objects = [
+                        obj for obj in nb_objects
+                            if self.vc_tag in obj["tags"]
                     ]
-                log.debug(
-                    "Found %s virtual interfaces with tag '%s'.",
-                    len(nb_objects), self.vc_tag
+                    log.debug(
+                        "Found %s virtual interfaces with tag '%s'.",
+                        len(nb_objects), self.vc_tag
                     )
-            elif vc_obj_type == "virtual_machines" and \
-                    nb_obj_type == "ip_addresses":
-                nb_objects = [
-                    obj for obj in nb_objects
-                    if obj["interface"]["virtual_machine"] is not None
+                elif nb_obj_type == "ip_addresses":
+                    nb_objects = [
+                        obj for obj in nb_objects
+                            if obj.get("assigned_object") is not None and obj.get("assigned_object").get("virtual_machine") is not None
                     ]
             # From the vCenter objects provided collect only the names/models of
             # each object from the current type we're comparing against
@@ -1471,7 +1541,7 @@ class NetBoxHandler:
                     "Processing orphaned NetBox %s '%s' object.",
                     nb_obj_type, orphan[query_key]
                     )
-                if "Orphaned" not in orphan["tags"]:
+                if "Orphaned" not in [d.get("name") for d in orphan["tags"]]:
                     log.info(
                         "No tag found. Adding 'Orphaned' tag to %s '%s' "
                         "object.",
@@ -1479,7 +1549,9 @@ class NetBoxHandler:
                         )
                     log.debug("Merging existing tags with `Orphaned`.")
                     tags = {
-                        "tags": list(set(orphan["tags"] + ["Orphaned"]))
+                        "tags": list(
+                            {'name':x['name']} for x in orphan["tags"]
+                        ) + [{"name": "Orphaned"}]
                         }
                     self.request(
                         req_type="patch", nb_obj_type=nb_obj_type,
@@ -1673,6 +1745,27 @@ class NetBoxHandler:
             req_type="get", nb_obj_type="tags")
 
         self.instance_tags = req.get("results")
+
+    def update_interface_data(self, interface_type, interface_data):
+        """
+        Add NetBox interface to local lookup list so we are able to
+        assign a interface to a NetBox ip_addresses ressource
+        """
+
+        object_name = None
+        if interface_type == "virtual_interfaces":
+            object_name = interface_data.get("virtual_machine").get("name")
+        if interface_type == "interfaces":
+            object_name = interface_data.get("device").get("name")
+
+        interface_name = interface_data.get("name")
+
+        if object_name is not None and interface_name is not None:
+            key = "{}/{}".format(object_name, interface_name)
+            if interface_type == "virtual_interfaces":
+                self.instance_virtual_interfaces[key] = interface_data
+            if interface_type == "interfaces":
+                self.instance_interfaces[key] = interface_data
 
     def remove_all(self):
         """

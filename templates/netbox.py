@@ -382,7 +382,7 @@ class Templates:
         return remove_empty_fields(obj)
 
     def ip_address(self, address, description=None, device=None, dns_name=None,
-                   interface=None, status=1, tags=None, tenant=None,
+                   assigned_object=None, status=1, tags=None, tenant=None,
                    virtual_machine=None, vrf=None):
         """
         Template for NetBox IP addresses at /ipam/ip-addresses/
@@ -391,12 +391,12 @@ class Templates:
         :type address: str
         :param description: A description of the IP address purpose
         :type description: str, optional
-        :param device: The device which the IP and its interface are attached to
+        :param device: The device which the IP and its assigned_object are attached to
         :type device: str, optional
         :param dns_name: FQDN pointed to the IP address
         :type dns_name: str, optional
-        :param interface: Name of the parent interface IP is configured on
-        :type interface: str, optional
+        :param assigned_object: Name of the parent assigned_object IP is configured on
+        :type assigned_object: str, optional
         :param status: `1` if active, `0` if deprecated
         :type status: int
         :param tags: Tags to apply to the object
@@ -427,15 +427,15 @@ class Templates:
             "tenant": tenant,
             "vrf": vrf
             }
-        if interface and bool(device or virtual_machine):
-            obj["interface"] = {"name": interface}
+        if assigned_object and bool(device or virtual_machine):
+            obj["assigned_object"] = {"name": assigned_object}
             if device:
-                obj["interface"] = {
-                    **obj["interface"], **{"device": {"name": device}}
+                obj["assigned_object"] = {
+                    **obj["assigned_object"], **{"device": {"name": device}}
                     }
             elif virtual_machine:
-                obj["interface"] = {
-                    **obj["interface"],
+                obj["assigned_object"] = {
+                    **obj["assigned_object"],
                     **{"virtual_machine": {
                         "name": truncate(virtual_machine, max_len=64)
                         }}
@@ -686,7 +686,7 @@ class Templates:
             }
         return remove_empty_fields(obj)
 
-    def vm_interface(self, virtual_machine, name, itype=0, enabled=None,
+    def vm_interface(self, virtual_machine, name, enabled=None,
                      mtu=None, mac_address=None, description=None, mode=None,
                      untagged_vlan=None, tagged_vlans=None, tags=None):
         """
@@ -696,8 +696,6 @@ class Templates:
         :type virtual_machine: str
         :param name: Name of the physical interface
         :type name: str
-        :param itype: Type of interface `0` if Virtual else `32767` for Other
-        :type itype: str, optional
         :param enabled: `True` if the interface is up else `False`
         :type enabled: bool,optional
         :param mtu: The configured MTU for the interface
@@ -705,9 +703,9 @@ class Templates:
         :param mac_address: The MAC address of the interface
         :type mac_address: str, optional
         :param description: Description for the interface
-        :itype description: str, optional
+        :type description: str, optional
         :param mode: `100` if access, `200` if tagged, or `300 if` tagged for all vlans
-        :itype mode: int, optional
+        :type mode: int, optional
         :param untagged_vlan: NetBox VLAN object id of untagged vlan
         :type untagged_vlan: int, optional
         :param tagged_vlans: List of NetBox VLAN object ids for tagged VLANs
@@ -718,11 +716,6 @@ class Templates:
         obj = {
             "virtual_machine": {"name": truncate(virtual_machine, max_len=64)},
             "name": name,
-            "itype": self._version_dependent(
-                nb_obj_type="interfaces",
-                key="type",
-                value=itype
-                ),
             "enabled": enabled,
             "mtu": mtu,
             "mac_address": mac_address.upper() if mac_address else None,
