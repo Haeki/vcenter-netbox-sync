@@ -24,10 +24,10 @@ def format_slug(text, max_len=50):
     """
     allowed_chars = (
         "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" # Alphabet
-        "01234567890" # Numbers
+        "0123456789" # Numbers
         "_-" # Symbols
         )
-    # Replace seperators with dash
+    # Replace separators with dash
     seperators = [" ", ",", "."]
     for sep in seperators:
         text = text.replace(sep, "-")
@@ -38,7 +38,19 @@ def format_slug(text, max_len=50):
 
 
 def truncate(text="", max_len=50):
-    """Ensure a string complies to the maximum length specified."""
+    """
+    Ensure a string complies to the maximum length specified.
+
+    :param text: Text to be checked for length and truncated if necessary
+    :type text: str
+    :param max_len: Max length of the returned string
+    :type max_len: int, optional
+    :return: Text in :param text: truncated to :param max_len: if necessary
+    :rtype: str
+    """
+    if text is None:
+        return None
+
     return text if len(text) < max_len else text[:max_len]
 
 
@@ -370,7 +382,7 @@ class Templates:
         return remove_empty_fields(obj)
 
     def ip_address(self, address, description=None, device=None, dns_name=None,
-                   interface=None, status=1, tags=None, tenant=None,
+                   assigned_object=None, status=1, tags=None, tenant=None,
                    virtual_machine=None, vrf=None):
         """
         Template for NetBox IP addresses at /ipam/ip-addresses/
@@ -379,12 +391,12 @@ class Templates:
         :type address: str
         :param description: A description of the IP address purpose
         :type description: str, optional
-        :param device: The device which the IP and its interface are attached to
+        :param device: The device which the IP and its assigned_object are attached to
         :type device: str, optional
         :param dns_name: FQDN pointed to the IP address
         :type dns_name: str, optional
-        :param interface: Name of the parent interface IP is configured on
-        :type interface: str, optional
+        :param assigned_object: Name of the parent assigned_object IP is configured on
+        :type assigned_object: str, optional
         :param status: `1` if active, `0` if deprecated
         :type status: int
         :param tags: Tags to apply to the object
@@ -415,15 +427,15 @@ class Templates:
             "tenant": tenant,
             "vrf": vrf
             }
-        if interface and bool(device or virtual_machine):
-            obj["interface"] = {"name": interface}
+        if assigned_object and bool(device or virtual_machine):
+            obj["assigned_object"] = {"name": assigned_object}
             if device:
-                obj["interface"] = {
-                    **obj["interface"], **{"device": {"name": device}}
+                obj["assigned_object"] = {
+                    **obj["assigned_object"], **{"device": {"name": device}}
                     }
             elif virtual_machine:
-                obj["interface"] = {
-                    **obj["interface"],
+                obj["assigned_object"] = {
+                    **obj["assigned_object"],
                     **{"virtual_machine": {
                         "name": truncate(virtual_machine, max_len=64)
                         }}
@@ -625,7 +637,7 @@ class Templates:
             "vcpus": vcpus,
             "memory": memory,
             "disk": disk,
-            "comments": comments,
+            "comments": comments.replace("\n", "\r\n\r") if comments else None,
             "local_context_data": local_context_data,
             "tags": tags
             }
@@ -674,7 +686,7 @@ class Templates:
             }
         return remove_empty_fields(obj)
 
-    def vm_interface(self, virtual_machine, name, itype=0, enabled=None,
+    def vm_interface(self, virtual_machine, name, enabled=None,
                      mtu=None, mac_address=None, description=None, mode=None,
                      untagged_vlan=None, tagged_vlans=None, tags=None):
         """
@@ -684,8 +696,6 @@ class Templates:
         :type virtual_machine: str
         :param name: Name of the physical interface
         :type name: str
-        :param itype: Type of interface `0` if Virtual else `32767` for Other
-        :type itype: str, optional
         :param enabled: `True` if the interface is up else `False`
         :type enabled: bool,optional
         :param mtu: The configured MTU for the interface
@@ -693,9 +703,9 @@ class Templates:
         :param mac_address: The MAC address of the interface
         :type mac_address: str, optional
         :param description: Description for the interface
-        :itype description: str, optional
+        :type description: str, optional
         :param mode: `100` if access, `200` if tagged, or `300 if` tagged for all vlans
-        :itype mode: int, optional
+        :type mode: int, optional
         :param untagged_vlan: NetBox VLAN object id of untagged vlan
         :type untagged_vlan: int, optional
         :param tagged_vlans: List of NetBox VLAN object ids for tagged VLANs
@@ -706,11 +716,6 @@ class Templates:
         obj = {
             "virtual_machine": {"name": truncate(virtual_machine, max_len=64)},
             "name": name,
-            "itype": self._version_dependent(
-                nb_obj_type="interfaces",
-                key="type",
-                value=itype
-                ),
             "enabled": enabled,
             "mtu": mtu,
             "mac_address": mac_address.upper() if mac_address else None,
@@ -751,3 +756,34 @@ class Templates:
             "tags": tags
             }
         return remove_empty_fields(obj)
+
+    def tag(self, name, slug=None, id=None, url=None, color=None,
+            description=None, tagged_items=None):
+        """
+        Template for NetBox TAGs at /extras/tags/
+
+        :param name: Name of the TAG
+        :type name: str
+        :param slug: Unique slug for tag
+        :type slug: str, optional
+        :param id: Unique id for the TAG
+        :type id: int, optional
+        :param url: Unique url of tag in NetBox instance
+        :type url: str, optional
+        :param color: hexadecimal web color representation
+        :type color: str, optional
+        :param description: Description of the TAG, max length 200
+        :type description: str, optional
+        :param tagged_items: number of items in NetBox instance with this tag assigned
+        :type tagged_items: int, optional
+
+        """
+        return remove_empty_fields({
+            "id": id,
+            "name": truncate(name, max_len=100),
+            "slug": slug if slug else format_slug(name, max_len=100),
+            "url": url,
+            "description": truncate(description, max_len=200),
+            "color": truncate(color, max_len=6),
+            "tagged_items": tagged_items
+        })
