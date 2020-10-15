@@ -1298,14 +1298,6 @@ class NetBoxHandler:
                     vc_data["tags"] = list(
                         {x['name']:x for x in vc_data["tags"] + nb_data["tags"]}.values()
                         )
-                # Remove site from existing NetBox host objects to allow for
-                # user modifications
-                if nb_obj_type == "devices":
-                    del vc_data["site"]
-                    log.debug(
-                        "Removed site from %s object before sending update "
-                        "to NetBox.", vc_data[query_key]
-                        )
                 respsone = self.request(
                     req_type="patch", nb_obj_type=nb_obj_type, data=vc_data,
                     nb_id=nb_data["id"]
