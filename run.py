@@ -380,7 +380,7 @@ class vCenterHandler:
                 "Reason: {}".format(self.vc_host, self.vc_port, err)
                 )
             log.critical(err_msg)
-            raise ConnectionError(err_msg)
+            raise ConnectionError(err_msg) from err
 
     def create_view(self, vc_obj_type):
         """
@@ -465,7 +465,7 @@ class vCenterHandler:
                         )
                     obj_model = truncate(obj.summary.hardware.model, max_len=50)
                     obj_platform = truncate(
-                        getattr(obj.summary.config.product, "fullName", "VMware ESXi"), 
+                        getattr(obj.summary.config.product, "fullName", "VMware ESXi"),
                         max_len=100
                         )
                     # NetBox Platforms, Manufacturers and Device Types are susceptible to
@@ -517,7 +517,7 @@ class vCenterHandler:
                         log.debug(
                             "Platform object '%s' already exists. "
                             "Skipping.", obj_platform
-                            ) 
+                            )
                     log.debug(
                         "Collecting info to create NetBox devices object."
                         )
@@ -958,7 +958,23 @@ class NetBoxHandler:
         return result
 
     def request(self, req_type, nb_obj_type, data=None, query=None, nb_id=None):
+        """
+        HTTP requests and exception handler for NetBox
+        Performs multiple retries (3) bevor raising SystemExit
 
+        :param req_type: HTTP method type (GET, POST, PUT, PATCH, DELETE)
+        :type req_type: str
+        :param nb_obj_type: NetBox object type, must match keys in self.obj_map
+        :type nb_obj_type: str
+        :param data: NetBox object key value pairs
+        :type data: dict, optional
+        :param query: Filter for GET method requests
+        :type query: str, optional
+        :param nb_id: NetBox Object ID used when modifying an existing object
+        :type nb_id: int, optional
+        :return: Netbox objects and their corresponding data
+        :rtype: dict
+        """
         max_retry_attempts = 3
 
         for _ in range(max_retry_attempts):
@@ -1228,9 +1244,8 @@ class NetBoxHandler:
 
             # add missing tags before assigning them
             if "tags" in vc_data:
-
                 vc_data["tags"] = self.update_tag_data(vc_data["tags"])
-            
+
             # Objects that have been previously tagged as orphaned but then
             # reappear in vCenter need to be stripped of their orphaned status
             if "tags" in nb_data and "Orphaned" in [d.get("name") for d in nb_data["tags"]]:
@@ -1545,10 +1560,10 @@ class NetBoxHandler:
                             if obj["device"] is not None
                     ]
                 elif nb_obj_type == "ip_addresses":
-#                    pprint(nb_objects)
                     nb_objects = [
                         obj for obj in nb_objects
-                            if obj.get("assigned_object") is not None and obj.get("assigned_object").get("device") is not None
+                        if obj.get("assigned_object") is not None
+                        and obj.get("assigned_object").get("device") is not None
                     ]
             # Issue 33: As of NetBox v2.6.11 it is not possible to filter
             # virtual interfaces by tag. Therefore we filter post collection.
@@ -1565,7 +1580,8 @@ class NetBoxHandler:
                 elif nb_obj_type == "ip_addresses":
                     nb_objects = [
                         obj for obj in nb_objects
-                            if obj.get("assigned_object") is not None and obj.get("assigned_object").get("virtual_machine") is not None
+                        if obj.get("assigned_object") is not None
+                        and obj.get("assigned_object").get("virtual_machine") is not None
                     ]
             # From the vCenter objects provided collect only the names/models of
             # each object from the current type we're comparing against

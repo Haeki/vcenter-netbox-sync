@@ -757,7 +757,7 @@ class Templates:
             }
         return remove_empty_fields(obj)
 
-    def tag(self, name, slug=None, id=None, url=None, color=None,
+    def tag(self, name, slug=None, tag_id=None, url=None, color=None,
             description=None, tagged_items=None):
         """
         Template for NetBox TAGs at /extras/tags/
@@ -766,8 +766,8 @@ class Templates:
         :type name: str
         :param slug: Unique slug for tag
         :type slug: str, optional
-        :param id: Unique id for the TAG
-        :type id: int, optional
+        :param tag_id: Unique id for the TAG
+        :type tag_id: int, optional
         :param url: Unique url of tag in NetBox instance
         :type url: str, optional
         :param color: hexadecimal web color representation
@@ -779,7 +779,7 @@ class Templates:
 
         """
         return remove_empty_fields({
-            "id": id,
+            "id": tag_id,
             "name": truncate(name, max_len=100),
             "slug": slug if slug else format_slug(name, max_len=100),
             "url": url,
